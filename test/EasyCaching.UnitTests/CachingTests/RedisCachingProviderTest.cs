@@ -1,17 +1,33 @@
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
+
 namespace EasyCaching.UnitTests
 {
+    using System;
     using EasyCaching.Core;
     using EasyCaching.Core.Configurations;
     using EasyCaching.Redis;
-    using EasyCaching.Serialization.Json;
-    using EasyCaching.Serialization.MessagePack;
     using Microsoft.Extensions.DependencyInjection;
-    using System;
     using Xunit;
 
     public class RedisCachingProviderTest : BaseCachingProviderTest
     {
         private readonly string ProviderName = "Test";
+
+        const int RedisExposedPort = 6380;
+
+        static RedisCachingProviderTest()
+        {
+            var containerBuilder = new TestcontainersBuilder<TestcontainersContainer>()
+                .WithImage("redis")
+                .WithName("testcontainers-redis")
+                .WithPortBinding(RedisExposedPort, 6379)
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(RedisExposedPort));
+
+            var container = containerBuilder.Build();
+
+            _ = container.StartAsync();
+        }
 
         public RedisCachingProviderTest()
         {
@@ -23,14 +39,14 @@ namespace EasyCaching.UnitTests
                     {
                         AllowAdmin = true
                     };
-                    options.DBConfig.Endpoints.Add(new ServerEndPoint("127.0.0.1", 6380));
+                    options.DBConfig.Endpoints.Add(new ServerEndPoint("127.0.0.1", RedisExposedPort));
                     options.DBConfig.Database = 5;
                 }, ProviderName)
             );
             IServiceProvider serviceProvider = services.BuildServiceProvider();
             _provider = serviceProvider.GetService<IEasyCachingProvider>();
-            _defaultTs = TimeSpan.FromSeconds(30);
-            _nameSpace = "RedisBasic";
+            //_defaultTs = TimeSpan.FromSeconds(30);
+            //_nameSpace = "RedisBasic";
         }
 
         [Fact]
@@ -44,7 +60,7 @@ namespace EasyCaching.UnitTests
         {
             IServiceCollection services = new ServiceCollection();
             services.AddEasyCaching(x =>
-                x.UseRedis(options => { options.DBConfig.Endpoints.Add(new ServerEndPoint("127.0.0.1", 6380)); },
+                x.UseRedis(options => { options.DBConfig.Endpoints.Add(new ServerEndPoint("127.0.0.1", RedisExposedPort)); },
                     ProviderName)
             );
             IServiceProvider serviceProvider = services.BuildServiceProvider();
@@ -83,7 +99,7 @@ namespace EasyCaching.UnitTests
             services.AddEasyCaching(x =>
                 x.UseRedis(options =>
                 {
-                    options.DBConfig.Configuration = "127.0.0.1:6380,allowAdmin=false,defaultdatabase=8";
+                    options.DBConfig.Configuration = $"127.0.0.1:{RedisExposedPort},allowAdmin=false,defaultdatabase=8";
                 }));
             IServiceProvider serviceProvider = services.BuildServiceProvider();
             var dbProvider = serviceProvider.GetService<IRedisDatabaseProvider>();

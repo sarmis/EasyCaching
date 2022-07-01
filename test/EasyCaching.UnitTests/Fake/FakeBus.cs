@@ -17,7 +17,7 @@
             return Task.CompletedTask;
         }
 
-        public void Subscribe(string topic, Action<EasyCachingMessage> action)
+        public void Subscribe(string topic, Action<EasyCachingMessage> action, Action reconnectAction = null)
         {
 
         }

@@ -82,17 +82,29 @@
 
             // Here use the order to distinguish traditional provider
             var local = factory.GetCachingProvider(_options.LocalCacheProviderName);
-            if (local.IsDistributedCache) throw new NotFoundCachingProviderException("Can not found any local caching providers.");
-            else this._localCache = local;
+            if (local.IsDistributedCache)
+            {
+                throw new NotFoundCachingProviderException("Can not found any local caching providers.");
+            }
+            else
+            {
+                this._localCache = local;
+            }
 
             // Here use the order to distinguish traditional provider
             var distributed = factory.GetCachingProvider(_options.DistributedCacheProviderName);
 
-            if (!distributed.IsDistributedCache) throw new NotFoundCachingProviderException("Can not found any distributed caching providers.");
-            else this._distributedCache = distributed;
+            if (!distributed.IsDistributedCache)
+            {
+                throw new NotFoundCachingProviderException("Can not found any distributed caching providers.");
+            }
+            else
+            {
+                this._distributedCache = distributed;
+            }
 
             this._bus = bus ?? NullEasyCachingBus.Instance;
-            this._bus.Subscribe(_options.TopicName, OnMessage);
+            this._bus.Subscribe(_options.TopicName, OnMessage, OnReconnect);
 
             this._cacheId = Guid.NewGuid().ToString("N");
 
@@ -124,7 +136,9 @@
         {
             // each clients will recive the message, current client should ignore.
             if (!string.IsNullOrWhiteSpace(message.Id) && message.Id.Equals(_cacheId, StringComparison.OrdinalIgnoreCase))
+            {
                 return;
+            }
 
             // remove by prefix
             if (message.IsPrefix)
@@ -144,6 +158,12 @@
 
                 LogMessage($"remove local cache that cache key is {item}");
             }
+        }
+
+        private void OnReconnect()
+        {
+            LogMessage("Bus Reconnected, flushing in-memory keys");
+            _localCache.Flush();
         }
 
         /// <summary>
@@ -230,7 +250,7 @@
             if (cacheValue.HasValue)
             {
                 TimeSpan ts = GetExpiration(cacheKey);
-               
+
                 _localCache.Set(cacheKey, cacheValue.Value, ts);
 
                 return cacheValue;
@@ -789,7 +809,7 @@
             if (cacheValue != null)
             {
                 TimeSpan ts = await GetExpirationAsync(cacheKey);
-              
+
                 await _localCache.SetAsync(cacheKey, cacheValue, ts);
 
                 return cacheValue;
