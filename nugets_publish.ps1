@@ -23,7 +23,7 @@ dotnet pack -o $folder -c Release .\EasyCaching.sln
 
 foreach ($project in $projects)
 {    
-    #Write-Host $project;
-    #$nuget = (Get-ChildItem "$folder\$project.*.nupkg")[0].name;
-    #dotnet nuget push "$folder\$nuget" -s https://nuget.kaizengaming.eu/ -k $key --skip-duplicate
+    Write-Host $project;
+    $nuget = (Get-ChildItem "$folder\$project.*.nupkg")[0].name;
+    dotnet nuget push "$folder\$nuget" -s https://nuget.kaizengaming.eu/ -k $key --skip-duplicate
 }
