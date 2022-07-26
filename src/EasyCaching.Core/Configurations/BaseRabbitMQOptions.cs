@@ -26,6 +26,8 @@
         /// Topic exchange name when declare a topic exchange.
         /// </summary>
         public string TopicExchangeName { get; set; } = "rmq.exchange.topic.easycaching";
+        
+        public string ListenerExchangeName { get; set; }
 
         /// <summary>
         /// Timeout setting for connection attempts (in milliseconds).

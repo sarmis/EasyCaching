@@ -152,11 +152,16 @@
 
         private void StartConsumer(string queueName, string topic)
         {
+            if (string.IsNullOrEmpty(_options.ListenerExchangeName))
+            {
+                _options.ListenerExchangeName = _options.TopicExchangeName;
+            }
+            
             var model = _subConnection.CreateModel();
-            model.ExchangeDeclare(_options.TopicExchangeName, ExchangeType.Topic, true, false, null);
+            model.ExchangeDeclare(_options.ListenerExchangeName, ExchangeType.Topic, true, false, null);
             model.QueueDeclare(queueName, false, false, true, null);
             // bind the queue with the exchange.
-            model.QueueBind(queueName, _options.TopicExchangeName, topic);
+            model.QueueBind(queueName, _options.ListenerExchangeName, topic);
             var consumer = new EventingBasicConsumer(model);
             consumer.Received += OnMessage;
             consumer.Shutdown += (sender, e) =>
