@@ -69,7 +69,7 @@
 
             _subConnection = factory.CreateConnection();
 
-            _pubChannelPool = new DefaultObjectPool<IModel>(_objectPolicy);
+            _pubChannelPool = new DefaultObjectPool<IModel>(_objectPolicy, _options.ChannelPoolSize);
 
             _busId = Guid.NewGuid().ToString("N");
         }

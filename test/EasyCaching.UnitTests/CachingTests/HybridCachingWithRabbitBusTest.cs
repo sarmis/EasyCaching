@@ -1,4 +1,6 @@
-﻿using EasyCaching.Redis;
+﻿using System.Collections.Generic;
+using System.Threading;
+using EasyCaching.Redis;
 
 namespace EasyCaching.UnitTests
 {
@@ -154,5 +156,34 @@ namespace EasyCaching.UnitTests
             Assert.True(await _node2.Memory.ExistsAsync(cacheKey));
         }
 
+
+        [Fact]
+        public async Task Rabbit_LongRunTest()
+        {
+            var cacheKey = $"{_namespace}_{Guid.NewGuid()}";
+
+            var threads = new List<Thread>();
+
+
+            for (var i = 0; i < 128; i++)
+            {
+                var t = new Thread(() =>
+                {
+                    while (true)
+                    {
+                        _ = _node1.Hybrid.SetAsync(cacheKey, "test-001", _ttl);
+                    }
+                });
+
+                threads.Add(t);
+            }
+
+            foreach (var t in threads)
+            {
+                t.Start();
+            }
+
+            await Task.Delay(TimeSpan.FromMinutes(20));
+        }
     }
 }

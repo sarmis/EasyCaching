@@ -6,10 +6,11 @@
 
     public class ModelPooledObjectPolicy : IPooledObjectPolicy<IModel>
     {
-          
-        private readonly RabbitMQBusOptions _options;        
+
+        private readonly RabbitMQBusOptions _options;
 
         private readonly IConnection _connection;
+
 
         public ModelPooledObjectPolicy(IOptions<RabbitMQBusOptions> optionsAccs)
         {
