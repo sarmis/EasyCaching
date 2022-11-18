@@ -69,7 +69,9 @@
 
             _subConnection = factory.CreateConnection();
 
-            _pubChannelPool = new DefaultObjectPool<IModel>(_objectPolicy, _options.ChannelPoolSize);
+            var provider = new DefaultObjectPoolProvider() { MaximumRetained = _options.ChannelPoolSize };
+
+            _pubChannelPool = provider.Create(_objectPolicy);
 
             _busId = Guid.NewGuid().ToString("N");
         }
