@@ -1,6 +1,7 @@
 ﻿namespace EasyCaching.Bus.RabbitMQ
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using EasyCaching.Core;
@@ -14,7 +15,7 @@
     /// <summary>
     /// Default RabbitMQ Bus.
     /// </summary>
-    public class DefaultRabbitMQBus : EasyCachingAbstractBus
+    public class DefaultRabbitMQStreamBus : EasyCachingAbstractBus
     {
         /// <summary>
         /// The subscriber connection.
@@ -41,13 +42,20 @@
         /// </summary>
         private readonly string _busId;
 
+        private static readonly Dictionary<string, object> _streamArgs = new Dictionary<string, object>
+        {
+            { "x-queue-type", "stream" },
+            { "x-max-age", "5m" },
+            { "x-stream-max-segment-size-bytes", 4_000_000 }
+        };
+
         /// <summary>
         /// Initializes a new instance of the <see cref="T:EasyCaching.Bus.RabbitMQ.DefaultRabbitMQBus"/> class.
         /// </summary>
         /// <param name="_objectPolicy">Object policy.</param>
         /// <param name="rabbitMQOptions">RabbitMQ Options.</param>
         /// <param name="serializer">Serializer.</param>
-        public DefaultRabbitMQBus(
+        public DefaultRabbitMQStreamBus(
             IPooledObjectPolicy<IModel> _objectPolicy
             , IOptions<RabbitMQBusOptions> rabbitMQOptions
             , IEasyCachingSerializer serializer)
@@ -65,10 +73,15 @@
                 RequestedConnectionTimeout = System.TimeSpan.FromMilliseconds(_options.RequestedConnectionTimeout),
                 SocketReadTimeout = System.TimeSpan.FromMilliseconds(_options.SocketReadTimeout),
                 SocketWriteTimeout = System.TimeSpan.FromMilliseconds(_options.SocketWriteTimeout),
-                ClientProvidedName = _options.ClientProvidedName,
+                ClientProvidedName = _options.ClientProvidedName
             };
 
             _subConnection = factory.CreateConnection();
+
+            _subConnection.ConnectionShutdown += (_, e) =>
+            {
+                _options._logger($"ERROR: ConnectionShutdown: {e.ReplyText}");
+            };
 
             var provider = new DefaultObjectPoolProvider();
 
@@ -140,21 +153,12 @@
         /// <param name="action">Action.</param>
         public override void BaseSubscribe(string topic, Action<EasyCachingMessage> action)
         {
-            var queueName = string.Empty;
-            if (string.IsNullOrWhiteSpace(_options.QueueName))
-            {
-                queueName = $"rmq.queue.undurable.easycaching.subscriber.{_busId}";
-            }
-            else
-            {
-                queueName = _options.QueueName;
-            }
+            var queueName = $"rmq.stream.easycaching.{topic}";
 
             Task.Factory.StartNew(
                 () => StartConsumer(queueName, topic),
                 TaskCreationOptions.LongRunning);
         }
-
 
         /// <summary>
         /// Subscribe the specified topic and action async.
@@ -164,15 +168,9 @@
         /// <param name="cancellationToken">Cancellation token.</param>
         public override Task BaseSubscribeAsync(string topic, Action<EasyCachingMessage> action, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var queueName = string.Empty;
-            if (string.IsNullOrWhiteSpace(_options.QueueName))
-            {
-                queueName = $"rmq.queue.undurable.easycaching.subscriber.{_busId}";
-            }
-            else
-            {
-                queueName = _options.QueueName;
-            }
+            _options._logger($"WARNING: BaseSubscribeAsync for {topic}");
+
+            var queueName = $"rmq.stream.easycaching.{topic}";
 
             StartConsumer(queueName, topic);
             return Task.CompletedTask;
@@ -180,56 +178,36 @@
 
         private void StartConsumer(string queueName, string topic)
         {
-            var model = _subConnection.CreateModel();
+            _options._logger($"WARNING: Starting Consumer for {topic} ({queueName})");
+            var channel = _subConnection.CreateModel();
 
-            model.ExchangeDeclare(_options.TopicExchangeName, ExchangeType.Topic, true, false, null);
-            model.QueueDeclare(queueName, false, false, true, null);
+            channel.ModelShutdown += (_, e) =>
+            {
+                _options._logger($"ERROR: ModelShutdown: {e.ReplyText}");
+            };
+
+            // Streams require Qos setup
+            channel.BasicQos(0, 100, false);
+            channel.ExchangeDeclare(_options.TopicExchangeName, ExchangeType.Topic, true, false, null);
+            channel.QueueDeclare(queueName, true, false, false, _streamArgs);
             // bind the queue with the exchange.
-            model.QueueBind(queueName, _options.TopicExchangeName, topic);
-            var consumer = new EventingBasicConsumer(model);
+            channel.QueueBind(queueName, _options.TopicExchangeName, topic);
+            var consumer = new EventingBasicConsumer(channel);
             consumer.Received += OnMessage;
+
+            consumer.ConsumerCancelled += (sender, e) =>
+            {
+                _options._logger($"ERROR: EasyCaching.DefaultRabbitMQStreamBus.OnConsumerCancelled: (Q: {queueName})");
+            };
+
             consumer.Shutdown += (sender, e) =>
             {
-                OnConsumerShutdown(sender, e);
-                OnConsumerError(queueName, topic, model);
+                _options._logger($"ERROR: EasyCaching.DefaultRabbitMQStreamBus.OnConsumerShutdown: (Q: {queueName}) {e.ReplyText}");
+                StartConsumer(queueName, topic);
+                BaseOnReconnect();
             };
 
-            consumer.ConsumerCancelled += (s, e) =>
-            {
-                OnConsumerError(queueName, topic, model);
-            };
-
-            model.BasicConsume(queueName, true, consumer);
-        }
-
-        private void OnConsumerError(string queueName, string topic, IModel model)
-        {
-            _options._logger($"ERROR: EasyCaching: Consumer Error for {queueName}");
-
-            StartConsumer(queueName, topic);
-            BaseOnReconnect();
-            try
-            {
-                if (model?.IsOpen == true)
-                {
-                    model?.Dispose();
-                }
-            }
-            catch
-            {
-                // nothing to do
-            }
-        }
-
-        /// <summary>
-        /// Ons the consumer shutdown.
-        /// </summary>
-        /// <param name="sender">Sender.</param>
-        /// <param name="e">E.</param>
-        private void OnConsumerShutdown(object sender, ShutdownEventArgs e)
-        {
-            Console.WriteLine($"{e.ReplyText}");
-            _options._logger($"ERROR: EasyCaching: Consumer Shutdown: {e.ReplyText}");
+            channel.BasicConsume(queueName, false, consumer);
         }
 
         /// <summary>
@@ -239,9 +217,16 @@
         /// <param name="e">E.</param>
         private void OnMessage(object sender, BasicDeliverEventArgs e)
         {
-            var message = _serializer.Deserialize<EasyCachingMessage>(e.Body.ToArray());
-            _options._logger?.Invoke(string.Join(",", message.CacheKeys));
-            BaseOnMessage(message);
+            try
+            {
+                var message = _serializer.Deserialize<EasyCachingMessage>(e.Body.ToArray());
+                _options._logger?.Invoke(string.Join(",", message.CacheKeys));
+                BaseOnMessage(message);
+            }
+            finally
+            {
+                (sender as EventingBasicConsumer)?.Model.BasicAck(e.DeliveryTag, false);
+            }
         }
     }
 }
