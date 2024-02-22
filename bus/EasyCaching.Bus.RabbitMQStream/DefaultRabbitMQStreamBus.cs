@@ -3,7 +3,9 @@
 namespace EasyCaching.Bus.RabbitMQ
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using EasyCaching.Core;
@@ -48,6 +50,11 @@ namespace EasyCaching.Bus.RabbitMQ
         /// The identifier.
         /// </summary>
         private readonly string _busId;
+
+        private ConcurrentDictionary<string, TopicStatistics> _topicStatistics = new ConcurrentDictionary<string, TopicStatistics>();
+
+        public TopicStatistics[] GetTopicStatistics() =>
+            _topicStatistics.Values.ToArray();
 
         private static readonly Dictionary<string, object> _streamArgs = new Dictionary<string, object>
         {
@@ -97,8 +104,8 @@ namespace EasyCaching.Bus.RabbitMQ
                 };
 
                 var provider = new DefaultObjectPoolProvider();
-                
-                if (_options.PublishingChannelsPoolSize.HasValue) 
+
+                if (_options.PublishingChannelsPoolSize.HasValue)
                 {
                     provider.MaximumRetained = _options.PublishingChannelsPoolSize.Value;
                 }
@@ -241,8 +248,11 @@ namespace EasyCaching.Bus.RabbitMQ
         /// <param name="e">E.</param>
         private void OnMessage(object sender, BasicDeliverEventArgs e)
         {
+
             try
             {
+                UpdateTopicStatistics(e.RoutingKey);
+
                 var message = _serializer.Deserialize<EasyCachingMessage>(e.Body.ToArray());
                 _logger?.LogDebug(string.Join(",", message.CacheKeys));
                 BaseOnMessage(message);
@@ -252,5 +262,34 @@ namespace EasyCaching.Bus.RabbitMQ
                 (sender as EventingBasicConsumer)?.Model.BasicAck(e.DeliveryTag, false);
             }
         }
+
+        private void UpdateTopicStatistics(string routingKey)
+        {
+            try
+            {
+                _topicStatistics.AddOrUpdate(routingKey, new TopicStatistics
+                {
+                    Topic = routingKey,
+                    LastMessageReceivedTimestamp = DateTimeOffset.UtcNow,
+                    TotalMessagesProcessed = 1
+                }, (k, v) =>
+                {
+                    v.LastMessageReceivedTimestamp = DateTimeOffset.UtcNow;
+                    v.TotalMessagesProcessed++;
+                    return v;
+                });
+            }
+            catch
+            {
+                // mute exception.
+            }
+        }
+    }
+
+    public class TopicStatistics
+    {
+        public string Topic { get; set; }
+        public DateTimeOffset LastMessageReceivedTimestamp { get; set; }
+        public long TotalMessagesProcessed { get; set; }
     }
 }
