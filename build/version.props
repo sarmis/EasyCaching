@@ -1,6 +1,6 @@
 <Project>
 	<PropertyGroup>
-		<EasyCachingCorePackageVersion>1.9.2.4-kzn</EasyCachingCorePackageVersion>
+		<EasyCachingCorePackageVersion>1.9.2.5-kzn</EasyCachingCorePackageVersion>
 		<EasyCachingMemcachedPackageVersion>1.9.2</EasyCachingMemcachedPackageVersion>
 		<EasyCachingRedisPackageVersion>1.9.2</EasyCachingRedisPackageVersion>
 		<EasyCachingSQLitePackageVersion>1.9.2</EasyCachingSQLitePackageVersion>
@@ -15,8 +15,8 @@
 		<EasyCachingCSRedisPackageVersion>1.9.2</EasyCachingCSRedisPackageVersion>
 		<EasyCachingRedisBusPackageVersion>1.9.2</EasyCachingRedisBusPackageVersion>
 		<EasyCachingCSRedisBusPackageVersion>1.9.2</EasyCachingCSRedisBusPackageVersion>
-		<EasyCachingRabbitBusPackageVersion>1.9.2.4-kzn</EasyCachingRabbitBusPackageVersion>
-		<EasyCachingRabbitStreamBusPackageVersion>1.9.2.4-kzn</EasyCachingRabbitStreamBusPackageVersion>
+		<EasyCachingRabbitBusPackageVersion>1.9.2.5-kzn</EasyCachingRabbitBusPackageVersion>
+		<EasyCachingRabbitStreamBusPackageVersion>1.9.2.5-kzn</EasyCachingRabbitStreamBusPackageVersion>
 		<EasyCachingKafkaBusPackageVersion>1.9.2</EasyCachingKafkaBusPackageVersion>
 		<EasyCachingZookeeperBusPackageVersion>1.9.2</EasyCachingZookeeperBusPackageVersion>
 		<EasyCachingDiskPackageVersion>1.9.2</EasyCachingDiskPackageVersion>

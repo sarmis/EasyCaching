@@ -184,7 +184,7 @@ namespace EasyCaching.Bus.RabbitMQ
         /// <param name="action">Action.</param>
         public override void BaseSubscribe(string topic, Action<EasyCachingMessage> action)
         {
-            var queueName = $"rmq.stream.easycaching.{topic}";
+            var queueName = GenerateStreamName(topic);
 
             Task.Factory.StartNew(
                 () => StartConsumer(queueName, topic),
@@ -201,11 +201,16 @@ namespace EasyCaching.Bus.RabbitMQ
         {
             _logger?.LogWarning($"BaseSubscribeAsync for {topic}");
 
-            var queueName = $"rmq.stream.easycaching.{topic}";
+            var queueName = GenerateStreamName(topic);
 
             StartConsumer(queueName, topic);
             return Task.CompletedTask;
         }
+
+        private string GenerateStreamName(string topic) =>
+            string.IsNullOrEmpty(_options.QueueName)
+                ? $"rmq.stream.easycaching.{topic}"
+                : $"rmq.stream.easycaching.{topic}.{_options.QueueName}";
 
         private void StartConsumer(string queueName, string topic)
         {
