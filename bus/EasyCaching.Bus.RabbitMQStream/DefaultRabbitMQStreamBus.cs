@@ -6,6 +6,7 @@ namespace EasyCaching.Bus.RabbitMQ
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using EasyCaching.Core;
@@ -56,12 +57,28 @@ namespace EasyCaching.Bus.RabbitMQ
         public TopicStatistics[] GetTopicStatistics() =>
             _topicStatistics.Values.ToArray();
 
-        private static readonly Dictionary<string, object> _streamArgs = new Dictionary<string, object>
+
+        private Dictionary<string, object> GenerateStreamArgs() 
         {
-            { "x-queue-type", "stream" },
-            { "x-max-age", "5m" },
-            { "x-stream-max-segment-size-bytes", 4_000_000 }
-        };
+            var streamArgs = new Dictionary<string, object>
+            {
+                { "x-queue-type", "stream" },
+                { "x-max-age", "5m" },
+                { "x-stream-max-segment-size-bytes", 4_000_000 }
+            };
+
+            foreach(var argument in this._options.Arguments) 
+            {
+                if (argument.Equals("x-queue-type"))
+                {
+                    continue; // do not allow to override queue-type.
+                }
+
+                streamArgs[argument.Key] = argument.Value;
+            }
+
+            return streamArgs;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:EasyCaching.Bus.RabbitMQ.DefaultRabbitMQBus"/> class.
@@ -225,7 +242,7 @@ namespace EasyCaching.Bus.RabbitMQ
             // Streams require Qos setup
             channel.BasicQos(0, 100, false);
             channel.ExchangeDeclare(_options.TopicExchangeName, ExchangeType.Topic, true, false, null);
-            channel.QueueDeclare(queueName, true, false, false, _streamArgs);
+            channel.QueueDeclare(queueName, true, false, false, GenerateStreamArgs());
             // bind the queue with the exchange.
             channel.QueueBind(queueName, _options.TopicExchangeName, topic);
             var consumer = new EventingBasicConsumer(channel);
